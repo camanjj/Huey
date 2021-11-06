@@ -35,7 +35,7 @@ class LogsVM: ObservableObject {
             }
             
         } catch {
-            Log.error(message: "Could not load log files", error: error, meta: nil)
+            Log.error("Could not load log files", error: error, meta: nil)
             entries = []
         }
     }

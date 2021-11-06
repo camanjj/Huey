@@ -65,25 +65,25 @@ public enum Log {
         let meta: [String: Any]?
     }
     
-    static func debug(message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    static func debug(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         let info = Info(level: .debug, message: message, error: nil, meta: meta)
         handleLog(info: info, context: context)
     }
     
-    static func info(message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    static func info(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         let info = Info(level: .info, message: message, error: nil, meta: meta)
         handleLog(info: info, context: context)
     }
     
-    static func warning(message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    static func warning(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         let info = Info(level: .warning, message: message, error: nil, meta: meta)
         handleLog(info: info, context: context)
     }
     
-    static func error(message: String, error: Error? = nil, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    static func error(_ message: String, error: Error? = nil, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         var metaWithError: [String: Any] = meta ?? [String: Any]()
         metaWithError["error"] = error

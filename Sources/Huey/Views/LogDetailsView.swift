@@ -29,7 +29,6 @@ struct LogDetailsView: View {
                                     .bold()
                                     .italic()
                                 Text(String(describing: context[key]))
-//                                    .font(.caption)
                                     .font(.system(size: 14, design: .monospaced))
 
                             }
