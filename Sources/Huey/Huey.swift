@@ -65,25 +65,25 @@ public enum Log {
         let meta: [String: Any]?
     }
     
-    static func debug(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func debug(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         let info = Info(level: .debug, message: message, error: nil, meta: meta)
         handleLog(info: info, context: context)
     }
     
-    static func info(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func info(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         let info = Info(level: .info, message: message, error: nil, meta: meta)
         handleLog(info: info, context: context)
     }
     
-    static func warning(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func warning(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         let info = Info(level: .warning, message: message, error: nil, meta: meta)
         handleLog(info: info, context: context)
     }
     
-    static func error(_ message: String, error: Error? = nil, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func error(_ message: String, error: Error? = nil, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         var metaWithError: [String: Any] = meta ?? [String: Any]()
         metaWithError["error"] = error
@@ -91,7 +91,7 @@ public enum Log {
         handleLog(info: info, context: context)
     }
     
-    static func getLogFile() throws -> Data {
+    public static func getLogFile() throws -> Data {
         guard let fileDestination = BeaverLog.destinations.first(where: { $0 is FileDestination }) as? FileDestination else {
             throw HueyError.noFileDestination
         }
