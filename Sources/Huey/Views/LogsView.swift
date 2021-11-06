@@ -8,11 +8,13 @@
 import Foundation
 import SwiftUI
 
-struct LogsView: View { // container view
+public struct LogsView: View { // container view
     
     @StateObject var viewModel = LogsVM()
     
-    var body: some View {
+    public init() {}
+    
+    public var body: some View {
         LogsListView(entries: viewModel.entries)
     }
 }
