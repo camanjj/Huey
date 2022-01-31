@@ -9,17 +9,19 @@ public enum Log {
     
     public static var enableLogging = true
     
-    private static var BeaverLog: SwiftyBeaver.Type  = {
-        let log = SwiftyBeaver.self
-        
+    private static let fileDestination = { () -> FileDestination in
         let fileLogProperties = { (destination: BaseDestination) in
             destination.format = "$J"
         }
         
         let file = FileDestination()
         fileLogProperties(file)
-        log.addDestination(file)
-        
+        return file
+    }()
+    
+    private static var BeaverLog: SwiftyBeaver.Type  = {
+        let log = SwiftyBeaver.self
+        log.addDestination(fileDestination)
 #if DEBUG
         let console = ConsoleDestination()  // log to Xcode Console
         let consoleLogProperties = { (destination: BaseDestination) in
@@ -91,11 +93,7 @@ public enum Log {
         handleLog(info: info, context: context)
     }
     
-    public static func getLogFile() throws -> Data {
-        guard let fileDestination = BeaverLog.destinations.first(where: { $0 is FileDestination }) as? FileDestination else {
-            throw HueyError.noFileDestination
-        }
-        
+    public static func getLogFile() throws -> Data {        
         guard let fileURL = fileDestination.logFileURL, let fileData = try? Data(contentsOf: fileURL) else {
             throw HueyError.noLogFile
         }
@@ -105,10 +103,6 @@ public enum Log {
     
     @discardableResult
     public static func clearLogFile() -> Bool {
-        guard let fileDestination = BeaverLog.destinations.first(where: { $0 is FileDestination }) as? FileDestination else {
-            return false
-        }
-        
         return fileDestination.deleteLogFile()
     }
     
