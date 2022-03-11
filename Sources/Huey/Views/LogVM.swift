@@ -10,7 +10,11 @@ import Combine
 
 class LogsVM: ObservableObject {
     
-    @Published var entries: [LogEntry]
+    @Published var entries: [LogEntry] {
+        didSet {
+            print("updating")
+        }
+    }
     private static let decoder = JSONDecoder()
     
     init() {

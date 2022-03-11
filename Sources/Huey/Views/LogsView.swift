@@ -9,10 +9,16 @@ import Foundation
 import SwiftUI
 
 public struct LogsView: View { // container view
+    public init() {}
+    
+    public var body: some View {
+        _LogsView()
+    }
+}
+
+struct _LogsView: View {
     
     @StateObject var viewModel = LogsVM()
-    
-    public init() {}
     
     public var body: some View {
         LogsListView(entries: viewModel.entries)
@@ -23,16 +29,14 @@ struct LogsListView: View {
     let entries: [LogEntry]
     
     var body: some View {
-        List {
-            ForEach(entries, id: \.id) { entry in
-                NavigationLink() {
-                    LogDetailsView(entry: entry)
-                } label: {
-                    LogEntryItemView(entry: entry)
-                }
+        List(entries) { entry in
+            NavigationLink() {
+                LogDetailsView(entry: entry)
+            } label: {
+                LogEntryItemView(entry: entry)
             }
         }
-        .animation(.default)
+        .animation(.default, value: entries.isEmpty)
     }
 }
 
