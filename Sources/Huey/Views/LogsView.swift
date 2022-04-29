@@ -84,6 +84,8 @@ extension LogEntryItemView {
 
 struct LogsView_Previews: PreviewProvider {
     static var previews: some View {
-        LogsListView(entries: LogEntry.generate(20))
+        NavigationView {
+            LogsListView(entries: LogEntry.generate(20))
+        }
     }
 }
