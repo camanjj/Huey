@@ -8,17 +8,10 @@
 import Foundation
 import SwiftUI
 
-public struct LogsView: View { // container view
-    public init() {}
-    
-    public var body: some View {
-        _LogsView()
-    }
-}
-
-struct _LogsView: View {
-    
+public struct LogsView: View {
     @StateObject var viewModel = LogsVM()
+    
+    public init() {}
     
     public var body: some View {
         LogsListView(entries: viewModel.entries)
@@ -50,21 +43,21 @@ struct LogEntryItemView: View {
     
     var body: some View {
         HStack {
-        VStack(alignment: .leading) {
-            HStack {
-                Text(date)
+            VStack(alignment: .leading) {
+                HStack {
+                    Text(date)
+                }
+                .font(.caption)
+                Text(message)
+                    .lineLimit(2)
+                HStack {
+                    Text(level.emoji)
+                        .font(.caption2)
+                    Text("\(file):\(function):\(line)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            .font(.caption)
-            Text(message)
-                .lineLimit(2)
-            HStack {
-                Text(level.emoji)
-                    .font(.caption2)
-                Text("\(file):\(function):\(line)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
             Spacer()
             
         }
