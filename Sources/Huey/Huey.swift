@@ -88,7 +88,7 @@ public enum Log {
     public static func error(_ message: String, error: Error? = nil, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         let context = Context(line: line, function: function, file: file)
         var metaWithError: [String: Any] = meta ?? [String: Any]()
-        metaWithError["error"] = error?.localizedDescription
+        metaWithError["error"] = String(describing: error)
         let info = Info(level: .error, message: message, error: error, meta: metaWithError)
         handleLog(info: info, context: context)
     }
