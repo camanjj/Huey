@@ -9,12 +9,13 @@ import Foundation
 
 struct LogData: Decodable {
     
+    // This maps to SwiftyBeaver.Level
     enum Level: Int, Decodable, CaseIterable {
-        case verbose = 1
-        case debug
-        case info
-        case warning
-        case error
+        case verbose = 0
+        case debug = 1
+        case info = 2
+        case warning = 3
+        case error = 4
         
         var emoji: String {
             switch self {
