@@ -11,10 +11,22 @@ import SwiftUI
 public struct LogsView: View {
     @StateObject var viewModel = LogsVM()
     
+    @State var showingFilter = false
+    
     public init() {}
     
     public var body: some View {
         LogsListView(entries: viewModel.entries)
+            .toolbar {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button(action: { showingFilter.toggle() }) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingFilter) {
+                FilterView()
+            }
     }
 }
 
