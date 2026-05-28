@@ -18,7 +18,7 @@ public struct LogsView: View {
     public var body: some View {
         LogsListView(entries: viewModel.entries)
             .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: filterPlacement) {
                     Button(action: { showingFilter.toggle() }) {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
@@ -27,6 +27,17 @@ public struct LogsView: View {
             .sheet(isPresented: $showingFilter) {
                 FilterView()
             }
+            .onAppear {
+                Task { await viewModel.load() }
+            }
+    }
+
+    private var filterPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        return .navigationBarTrailing
+        #else
+        return .primaryAction
+        #endif
     }
 }
 
