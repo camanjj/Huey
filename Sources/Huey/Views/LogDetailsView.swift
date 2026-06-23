@@ -35,9 +35,28 @@ struct LogDetailsView: View {
 struct ContextView: View {
     let key: String
     let value: AnyObject?
-    
-    @State var isExpanded = true
-    
+
+    private let rendered: String
+    @State private var isExpanded: Bool
+
+    init(key: String, value: AnyObject?) {
+        self.key = key
+        self.value = value
+        let rendered = String(describing: value)
+        self.rendered = rendered
+        _isExpanded = State(initialValue: !ContextView.isLarge(rendered))
+    }
+
+    private static func isLarge(_ rendered: String) -> Bool {
+        rendered.count > 200 || rendered.contains("\n")
+    }
+
+    private var preview: String {
+        let collapsed = rendered.replacingOccurrences(of: "\n", with: " ")
+        if collapsed.count <= 80 { return collapsed }
+        return String(collapsed.prefix(80)) + "…"
+    }
+
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
@@ -45,8 +64,14 @@ struct ContextView: View {
                     .bold()
                     .italic()
                 if isExpanded {
-                    Text(String(describing: value))
+                    Text(rendered)
                         .font(.system(size: 14, design: .monospaced))
+                } else {
+                    Text(preview)
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
         }
