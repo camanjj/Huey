@@ -8,13 +8,23 @@ public enum Log {
 
     public static var enableLogging = true
 
-    private static let defaultFileDestination = FileDestination()
+    private static let defaultFileDestination: FileDestination = {
+        let id = DestinationPreferences.identifier(for: FileDestination.self)
+        return FileDestination(
+            prettyPrint: DestinationPreferences.prettyPrint(for: id),
+            escapeStrings: DestinationPreferences.escapeStrings(for: id)
+        )
+    }()
 
     private static let destinationsLock = NSLock()
     private static var _destinations: [LogDestination] = {
         var list: [LogDestination] = [defaultFileDestination]
         #if DEBUG
-        list.append(SystemLogDestination())
+        let id = DestinationPreferences.identifier(for: SystemLogDestination.self)
+        list.append(SystemLogDestination(
+            prettyPrint: DestinationPreferences.prettyPrint(for: id),
+            escapeStrings: DestinationPreferences.escapeStrings(for: id)
+        ))
         #endif
         return list
     }()
@@ -31,7 +41,7 @@ public enum Log {
         _destinations.removeAll()
     }
 
-    private static func destinationsSnapshot() -> [LogDestination] {
+    public static func destinationsSnapshot() -> [LogDestination] {
         destinationsLock.lock()
         defer { destinationsLock.unlock() }
         return _destinations

@@ -1,12 +1,14 @@
 import Foundation
 
-public final class FileDestination: LogDestination {
+public final class FileDestination: JSONFormattedLogDestination {
 
     public var minLevel: LogLevel
     public let directory: URL
     public let fileName: String
     public let maxFileSize: Int
     public let maxFileCount: Int
+    public var prettyPrint: Bool
+    public var escapeStrings: Bool
 
     private let queue = DispatchQueue(label: "com.huey.file-destination")
     private let fileManager = FileManager.default
@@ -21,13 +23,17 @@ public final class FileDestination: LogDestination {
         fileName: String = "huey.log",
         maxFileSize: Int = 5 * 1024 * 1024,
         maxFileCount: Int = 5,
-        minLevel: LogLevel = .verbose
+        minLevel: LogLevel = .verbose,
+        prettyPrint: Bool = false,
+        escapeStrings: Bool = true
     ) {
         self.directory = directory
         self.fileName = fileName
         self.maxFileSize = max(1, maxFileSize)
         self.maxFileCount = max(1, maxFileCount)
         self.minLevel = minLevel
+        self.prettyPrint = prettyPrint
+        self.escapeStrings = escapeStrings
     }
 
     public var activeFileURL: URL {
@@ -67,7 +73,7 @@ public final class FileDestination: LogDestination {
 
     public func send(_ event: LogEvent) {
         guard shouldSend(event) else { return }
-        guard let line = Self.encode(event) else { return }
+        guard let line = encode(event) else { return }
         queue.async { [weak self] in
             self?.write(line)
         }
@@ -139,7 +145,7 @@ public final class FileDestination: LogDestination {
         return (base, ext)
     }
 
-    static func encode(_ event: LogEvent) -> Data? {
+    func encode(_ event: LogEvent) -> Data? {
         var payload: [String: Any] = [
             "timestamp": event.timestamp.timeIntervalSince1970,
             "level": event.level.rawValue,
@@ -153,9 +159,13 @@ public final class FileDestination: LogDestination {
             payload["context"] = context
         }
         guard JSONSerialization.isValidJSONObject(payload),
-              var data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else {
+              let raw = try? JSONSerialization.data(
+                withJSONObject: payload,
+                options: JSONFormatting.writingOptions(prettyPrint: prettyPrint)
+              ) else {
             return nil
         }
+        var data = JSONFormatting.postProcess(raw, escapeStrings: escapeStrings)
         data.append(0x0A) // newline
         return data
     }

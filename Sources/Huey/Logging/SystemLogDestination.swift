@@ -1,23 +1,29 @@
 import Foundation
 import os
 
-public final class SystemLogDestination: LogDestination {
+public final class SystemLogDestination: JSONFormattedLogDestination {
 
     public var minLevel: LogLevel
+    public var prettyPrint: Bool
+    public var escapeStrings: Bool
     private let logger: Logger
 
     public init(
         subsystem: String = Bundle.main.bundleIdentifier ?? "Huey",
         category: String = "Huey",
-        minLevel: LogLevel = .verbose
+        minLevel: LogLevel = .verbose,
+        prettyPrint: Bool = false,
+        escapeStrings: Bool = true
     ) {
         self.logger = Logger(subsystem: subsystem, category: category)
         self.minLevel = minLevel
+        self.prettyPrint = prettyPrint
+        self.escapeStrings = escapeStrings
     }
 
     public func send(_ event: LogEvent) {
         guard shouldSend(event) else { return }
-        let formatted = SystemLogDestination.format(event)
+        let formatted = format(event)
         switch event.level {
         case .verbose, .debug:
             logger.debug("\(formatted, privacy: .public)")
@@ -37,7 +43,7 @@ public final class SystemLogDestination: LogDestination {
         return f
     }()
 
-    static func format(_ event: LogEvent) -> String {
+    func format(_ event: LogEvent) -> String {
         let label: String
         switch event.level {
         case .verbose: label = "💜 VERBOSE"
@@ -47,12 +53,17 @@ public final class SystemLogDestination: LogDestination {
         case .error:   label = "🛑 ERROR"
         }
 
-        let timestamp = dateFormatter.string(from: event.timestamp)
+        let timestamp = SystemLogDestination.dateFormatter.string(from: event.timestamp)
         var line = "\(label): \(timestamp) [\(event.file).\(event.function):\(event.line)] \(event.message)"
         if let context = event.context, !context.isEmpty,
-           let data = try? JSONSerialization.data(withJSONObject: context, options: [.sortedKeys]),
-           let json = String(data: data, encoding: .utf8) {
-            line += " \(json)"
+           let raw = try? JSONSerialization.data(
+            withJSONObject: context,
+            options: JSONFormatting.writingOptions(prettyPrint: prettyPrint)
+           ) {
+            let processed = JSONFormatting.postProcess(raw, escapeStrings: escapeStrings)
+            if let json = String(data: processed, encoding: .utf8) {
+                line += " \(json)"
+            }
         }
         return line
     }

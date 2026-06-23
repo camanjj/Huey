@@ -10,15 +10,19 @@ import SwiftUI
 
 public struct LogsView: View {
     @StateObject var viewModel = LogsVM()
-    
+
     @State var showingFilter = false
-    
+    @State var showingDestinations = false
+
     public init() {}
-    
+
     public var body: some View {
         LogsListView(entries: viewModel.entries)
             .toolbar {
                 ToolbarItemGroup(placement: filterPlacement) {
+                    Button(action: { showingDestinations.toggle() }) {
+                        Image(systemName: "slider.horizontal.3")
+                    }
                     Button(action: { showingFilter.toggle() }) {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
@@ -26,6 +30,9 @@ public struct LogsView: View {
             }
             .sheet(isPresented: $showingFilter) {
                 FilterView()
+            }
+            .sheet(isPresented: $showingDestinations) {
+                DestinationsView()
             }
             .onAppear {
                 Task { await viewModel.load() }
