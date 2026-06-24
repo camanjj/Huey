@@ -26,7 +26,7 @@ extension LogEntry {
                     thread: "main",
                     message: randomString(length: 13)
                 ),
-                context: ["json": ["what's up"]] as? [String: AnyObject]
+                context: ["json": "what's up"] as? [String: AnyObject]
             )
         }
     }
