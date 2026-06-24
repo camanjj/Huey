@@ -7,6 +7,20 @@
 
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
+private func copyToPasteboard(_ string: String) {
+    #if canImport(UIKit)
+    UIPasteboard.general.string = string
+    #elseif canImport(AppKit)
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(string, forType: .string)
+    #endif
+}
 
 struct LogDetailsView: View {
     let entry: LogEntry
@@ -82,6 +96,14 @@ struct ContextView: View {
         }
         .onTapGesture {
             isExpanded.toggle()
+        }
+        .contextMenu {
+            Button("Copy Value") {
+                copyToPasteboard(rendered)
+            }
+            Button("Copy Key") {
+                copyToPasteboard(key)
+            }
         }
         .animation(.spring(), value: isExpanded)
     }
