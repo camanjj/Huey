@@ -42,7 +42,12 @@ struct ContextView: View {
     init(key: String, value: AnyObject?) {
         self.key = key
         self.value = value
-        let rendered = String(describing: value)
+        let rendered: String
+        if let value {
+            rendered = String(describing: value)
+        } else {
+            rendered = "nil"
+        }
         self.rendered = rendered
         _isExpanded = State(initialValue: !ContextView.isLarge(rendered))
     }
