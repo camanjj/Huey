@@ -8,7 +8,7 @@ public struct LogEvent: Sendable {
     public let file: String
     public let function: String
     public let line: Int
-    public let context: [String: String]?
+    public let context: [String: LogValue]?
 
     public init(
         level: LogLevel,
@@ -18,7 +18,7 @@ public struct LogEvent: Sendable {
         file: String,
         function: String,
         line: Int,
-        context: [String: String]?
+        context: [String: LogValue]?
     ) {
         self.level = level
         self.message = message

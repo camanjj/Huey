@@ -3,7 +3,7 @@ import XCTest
 
 final class DestinationFormattingTests: XCTestCase {
 
-    private func makeEvent(context: [String: String]? = nil) -> LogEvent {
+    private func makeEvent(context: [String: LogValue]? = nil) -> LogEvent {
         LogEvent(
             level: .info,
             message: "hello",
