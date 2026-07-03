@@ -47,25 +47,25 @@ public enum Log {
         return _destinations
     }
 
-    public static func verbose(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func verbose(_ message: String, meta: [String: LogValue]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         dispatch(level: .verbose, message: message, meta: meta, line: line, function: function, file: file)
     }
 
-    public static func debug(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func debug(_ message: String, meta: [String: LogValue]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         dispatch(level: .debug, message: message, meta: meta, line: line, function: function, file: file)
     }
 
-    public static func info(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func info(_ message: String, meta: [String: LogValue]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         dispatch(level: .info, message: message, meta: meta, line: line, function: function, file: file)
     }
 
-    public static func warning(_ message: String, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+    public static func warning(_ message: String, meta: [String: LogValue]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         dispatch(level: .warning, message: message, meta: meta, line: line, function: function, file: file)
     }
 
-    public static func error(_ message: String, error: Error? = nil, meta: [String: Any]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
-        var combined: [String: Any] = meta ?? [:]
-        combined["error"] = String(describing: error)
+    public static func error(_ message: String, error: Error? = nil, meta: [String: LogValue]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
+        var combined: [String: LogValue] = meta ?? [:]
+        combined["error"] = error.map { .string("\($0)") } ?? .null
         dispatch(level: .error, message: message, meta: combined, line: line, function: function, file: file)
     }
 
@@ -78,7 +78,7 @@ public enum Log {
         defaultFileDestination.deleteAllFiles()
     }
 
-    private static func dispatch(level: LogLevel, message: String, meta: [String: Any]?, line: Int, function: String, file: String) {
+    private static func dispatch(level: LogLevel, message: String, meta: [String: LogValue]?, line: Int, function: String, file: String) {
         guard shouldEmit(level: level) else { return }
 
         let event = LogEvent(
@@ -89,7 +89,7 @@ public enum Log {
             file: (file as NSString).lastPathComponent,
             function: function,
             line: line,
-            context: flatten(meta)
+            context: (meta?.isEmpty ?? true) ? nil : meta
         )
 
         for destination in destinationsSnapshot() {
@@ -113,12 +113,4 @@ public enum Log {
         return "background"
     }
 
-    private static func flatten(_ meta: [String: Any]?) -> [String: String]? {
-        guard let meta = meta, !meta.isEmpty else { return nil }
-        var out: [String: String] = [:]
-        for (key, value) in meta {
-            out[key] = String(describing: value)
-        }
-        return out
-    }
 }

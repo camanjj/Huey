@@ -23,7 +23,7 @@ final class FileDestinationTests: XCTestCase {
         level: LogLevel = .info,
         message: String = "hello",
         line: Int = 42,
-        context: [String: String]? = nil
+        context: [String: LogValue]? = nil
     ) -> LogEvent {
         LogEvent(
             level: level,
@@ -78,14 +78,14 @@ final class FileDestinationTests: XCTestCase {
 
     func testContextSurvivesSerialization() throws {
         let destination = FileDestination(directory: tempDir)
-        let context: [String: String] = ["userId": "abc", "request": "GET /foo"]
+        let context: [String: LogValue] = ["userId": "abc", "request": "GET /foo"]
         destination.send(makeEvent(context: context))
         waitForWrites(destination)
 
         let data = try Data(contentsOf: destination.activeFileURL)
         let line = data.split(separator: 0x0A).first!
         let json = try JSONSerialization.jsonObject(with: line, options: []) as! [String: Any]
-        XCTAssertEqual(json["context"] as? [String: String], context)
+        XCTAssertEqual(json["context"] as? [String: String], ["userId": "abc", "request": "GET /foo"])
     }
 
     func testRotationTriggersAtMaxFileSize() throws {

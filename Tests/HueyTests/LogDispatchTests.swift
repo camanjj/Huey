@@ -40,16 +40,13 @@ final class LogDispatchTests: XCTestCase {
         let err: Error? = Boom()
         Log.error("kaboom", error: err)
         let event = recorder.events.last
-        // Matches today's String(describing: Optional) behavior — preserved from the
-        // SwiftyBeaver wrapper. Asserting on `contains` keeps the test stable across
-        // Swift versions while still confirming the error description was captured.
         XCTAssertNotNil(event?.context?["error"])
-        XCTAssertTrue(event?.context?["error"]?.contains("Boom") == true)
+        XCTAssertTrue(event?.context?["error"]?.stringValue.contains("Boom") == true)
     }
 
-    func testErrorWithNilStillRecordsKey() {
+    func testErrorWithNilRecordsNullValue() {
         Log.error("kaboom", error: nil)
-        XCTAssertEqual(recorder.events.last?.context?["error"], "nil")
+        XCTAssertEqual(recorder.events.last?.context?["error"], .null)
     }
 
     func testEnableLoggingFalseSuppressesNonDebug() {
@@ -91,11 +88,12 @@ final class LogDispatchTests: XCTestCase {
         XCTAssertEqual(recorder.events.first?.level.rawValue, 0)
     }
 
-    func testContextFlattensMetaToStrings() {
-        Log.info("hi", meta: ["count": 7, "name": "abc"])
+    func testContextPreservesTypedMetaValues() {
+        Log.info("hi", meta: ["count": 7, "name": "abc", "flag": true])
         let ctx = recorder.events.first?.context ?? [:]
-        XCTAssertEqual(ctx["count"], "7")
-        XCTAssertEqual(ctx["name"], "abc")
+        XCTAssertEqual(ctx["count"], .int(7))
+        XCTAssertEqual(ctx["name"], .string("abc"))
+        XCTAssertEqual(ctx["flag"], .bool(true))
     }
 
     func testThreadNameIsMain() {
