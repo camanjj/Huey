@@ -57,7 +57,7 @@ public final class SystemLogDestination: JSONFormattedLogDestination {
         var line = "\(label): \(timestamp) [\(event.file).\(event.function):\(event.line)] \(event.message)"
         if let context = event.context, !context.isEmpty,
            let raw = try? JSONSerialization.data(
-            withJSONObject: context.mapValues(\.stringValue),
+            withJSONObject: context.mapValues(\.jsonObject),
             options: JSONFormatting.writingOptions(prettyPrint: prettyPrint)
            ) {
             let processed = JSONFormatting.postProcess(raw, escapeStrings: escapeStrings)

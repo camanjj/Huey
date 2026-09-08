@@ -68,12 +68,7 @@ final class LogsVM: ObservableObject {
                       let logData = try? decoder.decode(LogData.self, from: lineData) else {
                     continue
                 }
-                var context: [String: AnyObject]?
-                if let json = try? JSONSerialization.jsonObject(with: lineData, options: []) as? [String: Any],
-                   let jsonContext = json["context"] as? [String: AnyObject] {
-                    context = jsonContext
-                }
-                entries.append(LogEntry(data: logData, context: context))
+                entries.append(LogEntry(data: logData))
             }
         }
         return entries

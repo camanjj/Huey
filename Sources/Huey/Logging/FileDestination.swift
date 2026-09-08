@@ -156,7 +156,7 @@ public final class FileDestination: JSONFormattedLogDestination {
             "message": event.message
         ]
         if let context = event.context, !context.isEmpty {
-            payload["context"] = context.mapValues(\.stringValue)
+            payload["context"] = context.mapValues(\.jsonObject)
         }
         guard JSONSerialization.isValidJSONObject(payload),
               let raw = try? JSONSerialization.data(

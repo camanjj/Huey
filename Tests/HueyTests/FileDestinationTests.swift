@@ -88,6 +88,31 @@ final class FileDestinationTests: XCTestCase {
         XCTAssertEqual(json["context"] as? [String: String], ["userId": "abc", "request": "GET /foo"])
     }
 
+    func testNestedContextIsWrittenAsStructuredJSON() throws {
+        let destination = FileDestination(directory: tempDir)
+        let context: [String: LogValue] = [
+            "user": ["id": 7, "name": "Bob"],
+            "items": [1, 2],
+            "coupon": nil
+        ]
+        destination.send(makeEvent(context: context))
+        waitForWrites(destination)
+
+        let data = try Data(contentsOf: destination.activeFileURL)
+        let line = data.split(separator: 0x0A).first!
+        let json = try JSONSerialization.jsonObject(with: line, options: []) as! [String: Any]
+        let written = try XCTUnwrap(json["context"] as? [String: Any])
+        let user = try XCTUnwrap(written["user"] as? [String: Any])
+        XCTAssertEqual(user["id"] as? Int, 7)
+        XCTAssertEqual(user["name"] as? String, "Bob")
+        XCTAssertEqual(written["items"] as? [Int], [1, 2])
+        XCTAssertTrue(written["coupon"] is NSNull)
+
+        // ...and decodes back into the typed values the details view renders.
+        let decoded = try JSONDecoder().decode(LogData.self, from: line)
+        XCTAssertEqual(decoded.context, context)
+    }
+
     func testRotationTriggersAtMaxFileSize() throws {
         let destination = FileDestination(
             directory: tempDir,
