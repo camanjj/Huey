@@ -66,4 +66,86 @@ final class LogValueTests: XCTestCase {
         XCTAssertEqual(decoded["name"] as? String, "abc")
         XCTAssertEqual(decoded["nested"] as? [Int], [1, 2])
     }
+
+    // MARK: - String interpolation
+
+    func testInterpolatingNilRendersNilNotOptional() {
+        let missing: String? = nil
+        let v: LogValue = "\(missing)"
+        XCTAssertEqual(v, .string("nil"))
+    }
+
+    func testInterpolatingSomeRendersUnwrappedValue() {
+        let name: String? = "Bob"
+        let count: Int? = 7
+        XCTAssertEqual(LogValue("user \(name)"), .string("user Bob"))
+        XCTAssertEqual(LogValue("count \(count)"), .string("count 7"))
+    }
+
+    func testInterpolatingNonOptionalIsUnchanged() {
+        let v: LogValue = "id \(42) ok \(true)"
+        XCTAssertEqual(v, .string("id 42 ok true"))
+    }
+
+    // MARK: - Decoding
+
+    func testDecodesNestedJSONIntoTypedValues() throws {
+        let json = Data(#"""
+        {"count":7,"ratio":2.5,"flag":true,"name":"abc","missing":null,
+         "nested":{"list":[1,"x",false]}}
+        """#.utf8)
+        let decoded = try JSONDecoder().decode([String: LogValue].self, from: json)
+        XCTAssertEqual(decoded["count"], .int(7))
+        XCTAssertEqual(decoded["ratio"], .double(2.5))
+        XCTAssertEqual(decoded["flag"], .bool(true))
+        XCTAssertEqual(decoded["name"], .string("abc"))
+        XCTAssertEqual(decoded["missing"], .null)
+        XCTAssertEqual(decoded["nested"], .dictionary(["list": .array([.int(1), .string("x"), .bool(false)])]))
+    }
+
+    func testDecodingRoundTripsJsonObject() throws {
+        let original: LogValue = ["count": 7, "ratio": 2.5, "flag": false, "nested": ["a", nil]]
+        let data = try JSONSerialization.data(withJSONObject: original.jsonObject, options: [])
+        XCTAssertEqual(try JSONDecoder().decode(LogValue.self, from: data), original)
+    }
+
+    // MARK: - Presentation helpers
+
+    func testChildrenAreOrderedByKeyAndIndex() {
+        let dict: LogValue = ["b": 2, "a": 1]
+        XCTAssertEqual(dict.children?.map(\.label), ["a", "b"])
+        let array: LogValue = ["x", "y"]
+        XCTAssertEqual(array.children?.map(\.label), ["0", "1"])
+        XCTAssertNil(LogValue.int(1).children)
+    }
+
+    func testSummaryLabel() {
+        XCTAssertEqual(LogValue.dictionary(["a": 1]).summaryLabel, "{1 key}")
+        XCTAssertEqual(LogValue.dictionary(["a": 1, "b": 2]).summaryLabel, "{2 keys}")
+        XCTAssertEqual(LogValue.array([1]).summaryLabel, "[1 item]")
+        XCTAssertEqual(LogValue.array([1, 2]).summaryLabel, "[2 items]")
+        XCTAssertEqual(LogValue.null.summaryLabel, "nil")
+        XCTAssertEqual(LogValue.string("abc").summaryLabel, "abc")
+    }
+
+    func testIsLargeAndPreviewText() {
+        XCTAssertFalse(LogValue.string("short").isLarge)
+        XCTAssertTrue(LogValue.string("two\nlines").isLarge)
+        XCTAssertTrue(LogValue.string(String(repeating: "x", count: 201)).isLarge)
+
+        XCTAssertEqual(LogValue.string("two\nlines").previewText, "two lines")
+        let long = LogValue.string(String(repeating: "x", count: 100)).previewText
+        XCTAssertEqual(long, String(repeating: "x", count: 80) + "…")
+    }
+
+    func testCopyTextIsPrettyJSONForContainersAndRawForScalars() throws {
+        XCTAssertEqual(LogValue.string("plain").copyText, "plain")
+        XCTAssertEqual(LogValue.null.copyText, "nil")
+
+        let container: LogValue = ["b": 2, "a": 1]
+        let copied = container.copyText
+        XCTAssertTrue(copied.contains("\n"), "Containers should copy as pretty JSON")
+        let reparsed = try JSONDecoder().decode(LogValue.self, from: Data(copied.utf8))
+        XCTAssertEqual(reparsed, container)
+    }
 }

@@ -18,4 +18,5 @@ struct LogData: Decodable {
     let function: String
     let thread: String
     let message: String
+    let context: [String: LogValue]?
 }

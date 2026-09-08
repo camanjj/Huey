@@ -33,11 +33,13 @@ struct LogDetailsView: View {
                     .padding(.bottom)
                 
                 // Context
-                if let context = entry.context {
+                if let context = entry.context, !context.isEmpty {
                     Text("Context")
                         .font(.title2)
-                    ForEach(Array(context.keys), id: \.self) { key in
-                        ContextView(key: key, value: context[key])
+                    ForEach(context.sorted { $0.key < $1.key }, id: \.key) { key, value in
+                        GroupBox {
+                            LogValueRowView(label: key, value: value)
+                        }
                     }
                 }
             }
@@ -46,66 +48,105 @@ struct LogDetailsView: View {
     }
 }
 
-struct ContextView: View {
-    let key: String
-    let value: AnyObject?
+/// One node of a log entry's context. Dictionaries and arrays recurse into indented child
+/// rows; scalars print their value. Recursion is erased through `AnyView` so the opaque
+/// `body` type stays non-circular.
+struct LogValueRowView: View {
+    let label: String
+    let value: LogValue
+    let depth: Int
 
-    private let rendered: String
     @State private var isExpanded: Bool
 
-    init(key: String, value: AnyObject?) {
-        self.key = key
+    private static let maxAutoExpandDepth = 3
+
+    init(label: String, value: LogValue, depth: Int = 0) {
+        self.label = label
         self.value = value
-        let rendered: String
-        if let value {
-            rendered = String(describing: value)
-        } else {
-            rendered = "nil"
-        }
-        self.rendered = rendered
-        _isExpanded = State(initialValue: !ContextView.isLarge(rendered))
+        self.depth = depth
+        _isExpanded = State(initialValue: !value.isLarge && depth < LogValueRowView.maxAutoExpandDepth)
     }
 
-    private static func isLarge(_ rendered: String) -> Bool {
-        rendered.count > 200 || rendered.contains("\n")
-    }
+    private let monospaced = Font.system(size: 14, design: .monospaced)
 
-    private var preview: String {
-        let collapsed = rendered.replacingOccurrences(of: "\n", with: " ")
-        if collapsed.count <= 80 { return collapsed }
-        return String(collapsed.prefix(80)) + "…"
-    }
+    /// Short scalars sit on the same line as their key; only containers and big blobs expand.
+    private var isCollapsible: Bool { value.isContainer || value.isLarge }
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(key)
-                    .bold()
-                    .italic()
-                if isExpanded {
-                    Text(rendered)
-                        .font(.system(size: 14, design: .monospaced))
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            if isCollapsible, isExpanded {
+                if let children = value.children {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(children.enumerated()), id: \.offset) { _, child in
+                            AnyView(
+                                LogValueRowView(label: child.label, value: child.value, depth: depth + 1)
+                            )
+                        }
+                    }
+                    .padding(.leading, 12)
                 } else {
-                    Text(preview)
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    valueText
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .onTapGesture {
+            guard isCollapsible else { return }
             isExpanded.toggle()
         }
         .contextMenu {
             Button("Copy Value") {
-                copyToPasteboard(rendered)
+                copyToPasteboard(value.copyText)
             }
             Button("Copy Key") {
-                copyToPasteboard(key)
+                copyToPasteboard(label)
             }
         }
         .animation(.spring(), value: isExpanded)
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if value.isContainer {
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
+            Text(label)
+                .bold()
+                .italic()
+            if value.isContainer {
+                Text(value.summaryLabel)
+                    .font(monospaced)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else if !isCollapsible {
+                valueText
+            } else if !isExpanded {
+                Text(value.previewText)
+                    .font(monospaced)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder private var valueText: some View {
+        if case .null = value {
+            Text("nil")
+                .font(monospaced)
+                .italic()
+                .foregroundColor(.secondary)
+        } else {
+            Text(value.stringValue)
+                .font(monospaced)
+        }
     }
 }
 

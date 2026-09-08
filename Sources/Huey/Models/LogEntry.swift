@@ -10,7 +10,8 @@ import Foundation
 struct LogEntry: Identifiable {
     let id = UUID()
     let data: LogData
-    let context: [String: AnyObject]?
+
+    var context: [String: LogValue]? { data.context }
 }
 
 extension LogEntry {
@@ -24,9 +25,14 @@ extension LogEntry {
                     line: Int.random(in: 0...300),
                     function: "f()",
                     thread: "main",
-                    message: randomString(length: 13)
-                ),
-                context: ["json": "what's up"] as? [String: AnyObject]
+                    message: randomString(length: 13),
+                    context: [
+                        "user": ["id": 7, "name": "Bob", "admin": true],
+                        "items": [1, 2, 3],
+                        "coupon": nil,
+                        "json": "what's up"
+                    ]
+                )
             )
         }
     }
