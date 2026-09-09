@@ -1,0 +1,122 @@
+name: Release
+
+# Cutting a release is manual and owner-only: workflow_dispatch can only be
+# triggered by users with write access, and the guard step below narrows that
+# to the repository owner alone.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Which part of the version to increment"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: minor
+      version:
+        description: "Explicit version (X.Y.Z). Overrides the bump choice."
+        type: string
+        required: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Verify actor is the repository owner
+        env:
+          ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ "$ACTOR" != "$OWNER" ]; then
+            echo "::error::Releases may only be cut by the repository owner ($OWNER); $ACTOR is not." >&2
+            exit 1
+          fi
+
+      # Always release what is on main, even when dispatched from another branch.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve next version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXPLICIT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          latest=$(git tag --list --sort=-v:refname | head -1)
+          latest=${latest:-0.0.0}
+          echo "Latest tag: $latest"
+
+          if [ -n "$EXPLICIT" ]; then
+            if ! printf '%s' "$EXPLICIT" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Explicit version '$EXPLICIT' is not of the form X.Y.Z." >&2
+              exit 1
+            fi
+            next="$EXPLICIT"
+          else
+            IFS=. read -r major minor patch <<<"$latest"
+            case "$BUMP" in
+              major) major=$((major + 1)); minor=0; patch=0 ;;
+              minor) minor=$((minor + 1)); patch=0 ;;
+              patch) patch=$((patch + 1)) ;;
+              *) echo "::error::Unknown bump '$BUMP'." >&2; exit 1 ;;
+            esac
+            next="${major}.${minor}.${patch}"
+          fi
+
+          echo "Next version: $next"
+          echo "version=$next" >>"$GITHUB_OUTPUT"
+          echo "previous=$latest" >>"$GITHUB_OUTPUT"
+
+      - name: Check the release is new
+        env:
+          NEXT: ${{ steps.version.outputs.version }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+        run: |
+          set -euo pipefail
+
+          if git rev-parse -q --verify "refs/tags/$NEXT" >/dev/null; then
+            echo "::error::Tag $NEXT already exists." >&2
+            exit 1
+          fi
+
+          if [ "$PREVIOUS" != "0.0.0" ] \
+            && [ "$(git rev-parse "refs/tags/$PREVIOUS^{commit}")" = "$(git rev-parse HEAD)" ]; then
+            echo "::error::main is already released as $PREVIOUS; nothing new to tag." >&2
+            exit 1
+          fi
+
+      - name: Tag main
+        env:
+          NEXT: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEXT" -m "Release $NEXT"
+          git push origin "refs/tags/$NEXT"
+
+      - name: Publish release
+        env:
+          NEXT: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$NEXT" \
+            --target "$(git rev-parse HEAD)" \
+            --title "$NEXT" \
+            --generate-notes
+          {
+            echo "## Released \`$NEXT\`"
+            echo
+            echo "- Previous: \`${{ steps.version.outputs.previous }}\`"
+            echo "- Commit: \`$(git rev-parse HEAD)\`"
+          } >>"$GITHUB_STEP_SUMMARY"
