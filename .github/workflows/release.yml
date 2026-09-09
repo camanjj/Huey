@@ -51,9 +51,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          latest=$(git tag --list --sort=-v:refname | head -1)
+          # Only bare X.Y.Z tags that are reachable from main count as releases:
+          # a stray `build-42`, a pre-release, or a higher tag cut on some other
+          # branch must not drive main's version arithmetic.
+          latest=$(git tag --list --merged HEAD \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | tail -1 || true)
           latest=${latest:-0.0.0}
-          echo "Latest tag: $latest"
+          echo "Latest release tag on main: $latest"
 
           if [ -n "$EXPLICIT" ]; then
             if ! printf '%s' "$EXPLICIT" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -76,27 +82,66 @@ jobs:
           echo "version=$next" >>"$GITHUB_OUTPUT"
           echo "previous=$latest" >>"$GITHUB_OUTPUT"
 
-      - name: Check the release is new
+      # Tagging and publishing cannot be one atomic act, so a run that pushed a
+      # tag and then failed to publish leaves main tagged with no release. That
+      # state is repairable rather than terminal: a rerun finishes the job.
+      - name: Plan the release
+        id: plan
         env:
           NEXT: ${{ steps.version.outputs.version }}
-          PREVIOUS: ${{ steps.version.outputs.previous }}
+          EXPLICIT: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          if git rev-parse -q --verify "refs/tags/$NEXT" >/dev/null; then
+          head_tag=$(git tag --points-at HEAD \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | tail -1 || true)
+
+          if [ -n "$head_tag" ]; then
+            if gh release view "$head_tag" >/dev/null 2>&1; then
+              echo "::error::main is already released as $head_tag; nothing new to tag." >&2
+              exit 1
+            fi
+            if [ -n "$EXPLICIT" ] && [ "$EXPLICIT" != "$head_tag" ]; then
+              echo "::error::main is already tagged $head_tag but its release is missing. Rerun with version '$head_tag', or with no explicit version, to publish it." >&2
+              exit 1
+            fi
+            echo "::notice::Tag $head_tag already points at main and has no release; publishing it."
+            echo "version=$head_tag" >>"$GITHUB_OUTPUT"
+            echo "tag_needed=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$NEXT" >/dev/null \
+            || [ -n "$(git ls-remote --tags origin "refs/tags/$NEXT")" ]; then
             echo "::error::Tag $NEXT already exists." >&2
             exit 1
           fi
 
-          if [ "$PREVIOUS" != "0.0.0" ] \
-            && [ "$(git rev-parse "refs/tags/$PREVIOUS^{commit}")" = "$(git rev-parse HEAD)" ]; then
-            echo "::error::main is already released as $PREVIOUS; nothing new to tag." >&2
+          echo "version=$NEXT" >>"$GITHUB_OUTPUT"
+          echo "tag_needed=true" >>"$GITHUB_OUTPUT"
+
+      # The checkout is a snapshot; main can advance while this run is in flight.
+      # Refuse to tag a commit that is no longer main's tip rather than quietly
+      # releasing something older than "the latest changes on main".
+      - name: Verify main has not moved
+        if: steps.plan.outputs.tag_needed == 'true'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          head=$(git rev-parse HEAD)
+          tip=$(git rev-parse FETCH_HEAD)
+          if [ "$head" != "$tip" ]; then
+            echo "::error::main advanced from $head to $tip while this run was in flight; rerun to release the newer commit." >&2
             exit 1
           fi
 
       - name: Tag main
+        if: steps.plan.outputs.tag_needed == 'true'
         env:
-          NEXT: ${{ steps.version.outputs.version }}
+          NEXT: ${{ steps.plan.outputs.version }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -106,17 +151,19 @@ jobs:
 
       - name: Publish release
         env:
-          NEXT: ${{ steps.version.outputs.version }}
+          NEXT: ${{ steps.plan.outputs.version }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          commit=$(git rev-parse "refs/tags/$NEXT^{commit}")
           gh release create "$NEXT" \
-            --target "$(git rev-parse HEAD)" \
+            --target "$commit" \
             --title "$NEXT" \
             --generate-notes
           {
             echo "## Released \`$NEXT\`"
             echo
-            echo "- Previous: \`${{ steps.version.outputs.previous }}\`"
-            echo "- Commit: \`$(git rev-parse HEAD)\`"
+            echo "- Previous: \`$PREVIOUS\`"
+            echo "- Commit: \`$commit\`"
           } >>"$GITHUB_STEP_SUMMARY"
