@@ -8,7 +8,8 @@ public enum Log {
 
     public static var enableLogging = true
 
-    private static let defaultFileDestination: FileDestination = {
+    // Guarded by `destinationsLock`; replaced by `configureFile(directory:)`.
+    private static var _defaultFileDestination: FileDestination = {
         let id = DestinationPreferences.identifier(for: FileDestination.self)
         return FileDestination(
             prettyPrint: DestinationPreferences.prettyPrint(for: id),
@@ -16,9 +17,15 @@ public enum Log {
         )
     }()
 
+    static var defaultFileDestination: FileDestination {
+        destinationsLock.lock()
+        defer { destinationsLock.unlock() }
+        return _defaultFileDestination
+    }
+
     private static let destinationsLock = NSLock()
     private static var _destinations: [LogDestination] = {
-        var list: [LogDestination] = [defaultFileDestination]
+        var list: [LogDestination] = [_defaultFileDestination]
         #if DEBUG
         let id = DestinationPreferences.identifier(for: SystemLogDestination.self)
         list.append(SystemLogDestination(
@@ -67,6 +74,36 @@ public enum Log {
         var combined: [String: LogValue] = meta ?? [:]
         combined["error"] = error.map { .string("\($0)") } ?? .null
         dispatch(level: .error, message: message, meta: combined, line: line, function: function, file: file)
+    }
+
+    /// The directory the default log file is written to. Defaults to
+    /// `FileDestination.defaultDirectory` (`Library/Caches/Huey`).
+    public static var fileDirectory: URL {
+        defaultFileDestination.directory
+    }
+
+    /// Moves the default log file to `directory`, for example Application Support,
+    /// where iOS won't purge it. Can be called at any time: later events, `getLogFiles()`,
+    /// `clearLogFiles()` and `LogsView` all use the new directory. Files already written
+    /// to the previous directory are left in place.
+    public static func configureFile(directory: URL) {
+        destinationsLock.lock()
+        defer { destinationsLock.unlock() }
+        let old = _defaultFileDestination
+        let new = FileDestination(
+            directory: directory,
+            fileName: old.fileName,
+            maxFileSize: old.maxFileSize,
+            maxFileCount: old.maxFileCount,
+            minLevel: old.minLevel,
+            prettyPrint: old.prettyPrint,
+            escapeStrings: old.escapeStrings
+        )
+        // Swap in place, so the order is kept and a removed default stays removed.
+        if let index = _destinations.firstIndex(where: { $0 === old }) {
+            _destinations[index] = new
+        }
+        _defaultFileDestination = new
     }
 
     public static func getLogFiles() -> [URL] {
