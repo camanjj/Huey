@@ -164,6 +164,21 @@ final class LogDispatchTests: XCTestCase {
         XCTAssertTrue(snapshot[2] === trailing)
     }
 
+    func testConfigureFileSwapsEveryCopyOfDefault() throws {
+        restoreFileDirectory()
+        let old = Log.defaultFileDestination
+        Log.addDestination(old)
+        Log.addDestination(old)
+
+        Log.configureFile(directory: try makeTempDir())
+
+        let snapshot = Log.destinationsSnapshot()
+        XCTAssertEqual(snapshot.count, 3)
+        XCTAssertTrue(snapshot[0] === recorder)
+        XCTAssertTrue(snapshot[1] === Log.defaultFileDestination)
+        XCTAssertTrue(snapshot[2] === Log.defaultFileDestination)
+    }
+
     func testConfigureFileDoesNotReAddRemovedDefault() throws {
         restoreFileDirectory()
         Log.configureFile(directory: try makeTempDir())

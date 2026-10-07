@@ -100,9 +100,8 @@ public enum Log {
             escapeStrings: old.escapeStrings
         )
         // Swap in place, so the order is kept and a removed default stays removed.
-        if let index = _destinations.firstIndex(where: { $0 === old }) {
-            _destinations[index] = new
-        }
+        // Every copy is swapped, in case the default was re-added from a snapshot.
+        _destinations = _destinations.map { $0 === old ? new : $0 }
         _defaultFileDestination = new
     }
 
