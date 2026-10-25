@@ -48,6 +48,13 @@ struct LogDetailsView: View {
     }
 }
 
+/// A request to open or close a context row and every row beneath it. Each request gets a
+/// fresh `id`, so issuing the same direction twice still reaches rows changed by hand since.
+struct ExpansionCommand: Equatable {
+    let expand: Bool
+    let id = UUID()
+}
+
 /// One node of a log entry's context. Dictionaries and arrays recurse into indented child
 /// rows; scalars print their value. Recursion is erased through `AnyView` so the opaque
 /// `body` type stays non-circular.
@@ -55,16 +62,29 @@ struct LogValueRowView: View {
     let label: String
     let value: LogValue
     let depth: Int
+    /// The latest Expand All / Collapse All issued by an ancestor, if any.
+    let command: ExpansionCommand?
 
     @State private var isExpanded: Bool
+    /// The command this row hands to its children: the latest of its own and its ancestors'.
+    @State private var activeCommand: ExpansionCommand?
 
     private static let maxAutoExpandDepth = 3
 
-    init(label: String, value: LogValue, depth: Int = 0) {
+    init(label: String, value: LogValue, depth: Int = 0, command: ExpansionCommand? = nil) {
         self.label = label
         self.value = value
         self.depth = depth
-        _isExpanded = State(initialValue: !value.isLarge && depth < LogValueRowView.maxAutoExpandDepth)
+        self.command = command
+        // Rows created while a command is in force (children of a row it just opened) adopt it.
+        let defaultExpanded = !value.isLarge && depth < LogValueRowView.maxAutoExpandDepth
+        _isExpanded = State(initialValue: command?.expand ?? defaultExpanded)
+        _activeCommand = State(initialValue: command)
+    }
+
+    private func apply(_ command: ExpansionCommand) {
+        activeCommand = command
+        if isCollapsible { isExpanded = command.expand }
     }
 
     private let monospaced = Font.system(size: 14, design: .monospaced)
@@ -80,7 +100,12 @@ struct LogValueRowView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(Array(children.enumerated()), id: \.offset) { _, child in
                             AnyView(
-                                LogValueRowView(label: child.label, value: child.value, depth: depth + 1)
+                                LogValueRowView(
+                                    label: child.label,
+                                    value: child.value,
+                                    depth: depth + 1,
+                                    command: activeCommand
+                                )
                             )
                         }
                     }
@@ -92,11 +117,18 @@ struct LogValueRowView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture {
-            guard isCollapsible else { return }
-            isExpanded.toggle()
+        .onChange(of: command) { command in
+            if let command = command { apply(command) }
         }
         .contextMenu {
+            if value.isContainer {
+                Button("Expand All") {
+                    apply(ExpansionCommand(expand: true))
+                }
+                Button("Collapse All") {
+                    apply(ExpansionCommand(expand: false))
+                }
+            }
             Button("Copy Value") {
                 copyToPasteboard(value.copyText)
             }
@@ -107,7 +139,23 @@ struct LogValueRowView: View {
         .animation(.spring(), value: isExpanded)
     }
 
+    /// The tap-to-toggle area covers the key and its summary but not the Expand All button,
+    /// so tapping the button never also toggles the row.
     private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            headerContent
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard isCollapsible else { return }
+                    isExpanded.toggle()
+                }
+            if depth == 0, value.isContainer {
+                expandAllButton
+            }
+        }
+    }
+
+    private var headerContent: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             if value.isContainer {
                 Image(systemName: "chevron.right")
@@ -135,6 +183,21 @@ struct LogValueRowView: View {
             }
             Spacer(minLength: 0)
         }
+    }
+
+    /// Top-level containers get a one-tap toggle between Expand All and Collapse All. It offers
+    /// Collapse All only while the row is open and the last bulk command was Expand All, so a
+    /// row collapsed by hand offers Expand All again.
+    private var expandAllButton: some View {
+        let expandsNext = !isExpanded || activeCommand?.expand != true
+        return Button {
+            apply(ExpansionCommand(expand: expandsNext))
+        } label: {
+            Image(systemName: expandsNext ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+                .foregroundColor(.secondary)
+        }
+        .buttonStyle(BorderlessButtonStyle())
+        .accessibilityLabel(expandsNext ? "Expand All" : "Collapse All")
     }
 
     @ViewBuilder private var valueText: some View {
