@@ -1,3 +1,4 @@
+#if !os(watchOS)
 //
 //  FilterView.swift
 //  
@@ -52,3 +53,4 @@ struct FilterView_Previews: PreviewProvider {
         FilterView()
     }
 }
+#endif

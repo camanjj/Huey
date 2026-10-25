@@ -1,3 +1,4 @@
+#if !os(watchOS)
 //
 //  File.swift
 //  
@@ -218,3 +219,4 @@ struct LogDetailsView_Previews: PreviewProvider {
         LogDetailsView(entry: LogEntry.generate(1)[0])
     }
 }
+#endif

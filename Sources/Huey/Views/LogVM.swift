@@ -1,3 +1,4 @@
+#if !os(watchOS)
 //
 //  File.swift
 //
@@ -74,3 +75,4 @@ final class LogsVM: ObservableObject {
         return entries
     }
 }
+#endif
