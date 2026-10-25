@@ -117,10 +117,6 @@ struct LogValueRowView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture {
-            guard isCollapsible else { return }
-            isExpanded.toggle()
-        }
         .onChange(of: command) { command in
             if let command = command { apply(command) }
         }
@@ -143,7 +139,23 @@ struct LogValueRowView: View {
         .animation(.spring(), value: isExpanded)
     }
 
+    /// The tap-to-toggle area covers the key and its summary but not the Expand All button,
+    /// so tapping the button never also toggles the row.
     private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            headerContent
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard isCollapsible else { return }
+                    isExpanded.toggle()
+                }
+            if depth == 0, value.isContainer {
+                expandAllButton
+            }
+        }
+    }
+
+    private var headerContent: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             if value.isContainer {
                 Image(systemName: "chevron.right")
@@ -170,15 +182,14 @@ struct LogValueRowView: View {
                     .truncationMode(.tail)
             }
             Spacer(minLength: 0)
-            if depth == 0, value.isContainer {
-                expandAllButton
-            }
         }
     }
 
-    /// Top-level containers get a one-tap toggle between Expand All and Collapse All.
+    /// Top-level containers get a one-tap toggle between Expand All and Collapse All. It offers
+    /// Collapse All only while the row is open and the last bulk command was Expand All, so a
+    /// row collapsed by hand offers Expand All again.
     private var expandAllButton: some View {
-        let expandsNext = activeCommand?.expand != true
+        let expandsNext = !isExpanded || activeCommand?.expand != true
         return Button {
             apply(ExpansionCommand(expand: expandsNext))
         } label: {
