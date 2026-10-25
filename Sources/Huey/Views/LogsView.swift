@@ -1,3 +1,4 @@
+#if !os(watchOS)
 //
 //  File.swift
 //  
@@ -112,3 +113,4 @@ struct LogsView_Previews: PreviewProvider {
         }
     }
 }
+#endif

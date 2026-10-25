@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import Foundation
 import SwiftUI
 
@@ -69,3 +70,4 @@ struct DestinationsView_Previews: PreviewProvider {
         DestinationsView()
     }
 }
+#endif
