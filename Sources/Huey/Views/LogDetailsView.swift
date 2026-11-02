@@ -23,20 +23,46 @@ private func copyToPasteboard(_ string: String) {
     #endif
 }
 
+/// How context rows copy text. `LogDetailsView` swaps in a version that also shows the
+/// "Copied" toast; rows used elsewhere fall back to a plain pasteboard write.
+private struct CopyActionKey: EnvironmentKey {
+    static let defaultValue: (String) -> Void = copyToPasteboard
+}
+
+extension EnvironmentValues {
+    var copyAction: (String) -> Void {
+        get { self[CopyActionKey.self] }
+        set { self[CopyActionKey.self] = newValue }
+    }
+}
+
 struct LogDetailsView: View {
     let entry: LogEntry
-    
+
+    @State private var showsCopied = false
+    @State private var hideCopied: DispatchWorkItem?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading) {
                 // header
                 LogEntryItemView(entry: entry)
                     .padding(.bottom)
-                
+
                 // Context
                 if let context = entry.context, !context.isEmpty {
-                    Text("Context")
-                        .font(.title2)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Context")
+                            .font(.title2)
+                        Spacer()
+                        Button {
+                            copy(LogValue.dictionary(context).copyText)
+                        } label: {
+                            Label("Copy All", systemImage: "doc.on.doc")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+                    }
                     ForEach(context.sorted { $0.key < $1.key }, id: \.key) { key, value in
                         GroupBox {
                             LogValueRowView(label: key, value: value)
@@ -46,6 +72,30 @@ struct LogDetailsView: View {
             }
         }
         .padding([.horizontal])
+        .environment(\.copyAction, copy)
+        .overlay(copiedToast, alignment: .bottom)
+    }
+
+    private func copy(_ string: String) {
+        copyToPasteboard(string)
+        hideCopied?.cancel()
+        withAnimation { showsCopied = true }
+        let hide = DispatchWorkItem { withAnimation { showsCopied = false } }
+        hideCopied = hide
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: hide)
+    }
+
+    @ViewBuilder private var copiedToast: some View {
+        if showsCopied {
+            Label("Copied", systemImage: "checkmark")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Capsule().fill(Color.black.opacity(0.8)))
+                .padding(.bottom, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
     }
 }
 
@@ -88,6 +138,8 @@ struct LogValueRowView: View {
         if isCollapsible { isExpanded = command.expand }
     }
 
+    @Environment(\.copyAction) private var copy
+
     private let monospaced = Font.system(size: 14, design: .monospaced)
 
     /// Short scalars sit on the same line as their key; only containers and big blobs expand.
@@ -112,7 +164,7 @@ struct LogValueRowView: View {
                     }
                     .padding(.leading, 12)
                 } else {
-                    valueText
+                    expandedValueText
                 }
             }
         }
@@ -121,27 +173,30 @@ struct LogValueRowView: View {
         .onChange(of: command) { command in
             if let command = command { apply(command) }
         }
-        .contextMenu {
-            if value.isContainer {
-                Button("Expand All") {
-                    apply(ExpansionCommand(expand: true))
-                }
-                Button("Collapse All") {
-                    apply(ExpansionCommand(expand: false))
-                }
-            }
-            Button("Copy Value") {
-                copyToPasteboard(value.copyText)
-            }
-            Button("Copy Key") {
-                copyToPasteboard(label)
-            }
-        }
         .animation(.spring(), value: isExpanded)
     }
 
-    /// The tap-to-toggle area covers the key and its summary but not the Expand All button,
-    /// so tapping the button never also toggles the row.
+    /// Sits on the header rather than the whole row, so long-pressing an opened value selects
+    /// text instead; child rows carry their own menus.
+    @ViewBuilder private var menuItems: some View {
+        if value.isContainer {
+            Button("Expand All") {
+                apply(ExpansionCommand(expand: true))
+            }
+            Button("Collapse All") {
+                apply(ExpansionCommand(expand: false))
+            }
+        }
+        Button("Copy Value") {
+            copy(value.copyText)
+        }
+        Button("Copy Key") {
+            copy(label)
+        }
+    }
+
+    /// The tap-to-toggle area covers the key and its summary but not the Expand All or Copy
+    /// buttons, so tapping a button never also toggles the row.
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             headerContent
@@ -153,7 +208,23 @@ struct LogValueRowView: View {
             if depth == 0, value.isContainer {
                 expandAllButton
             }
+            if depth == 0 {
+                copyButton
+            }
         }
+        .contentShape(Rectangle())
+        .contextMenu { menuItems }
+    }
+
+    private var copyButton: some View {
+        Button {
+            copy(value.copyText)
+        } label: {
+            Image(systemName: "doc.on.doc")
+                .foregroundColor(.secondary)
+        }
+        .buttonStyle(BorderlessButtonStyle())
+        .accessibilityLabel("Copy Value")
     }
 
     private var headerContent: some View {
@@ -212,7 +283,63 @@ struct LogValueRowView: View {
                 .font(monospaced)
         }
     }
+
+    /// An opened big value. SwiftUI's `textSelection` on iOS can only copy a whole `Text`, so
+    /// iOS 16+ uses a read-only `UITextView` to allow selecting part of it.
+    @ViewBuilder private var expandedValueText: some View {
+        #if canImport(UIKit)
+        if #available(iOS 16, *) {
+            SelectableText(text: value.stringValue)
+        } else {
+            valueText.textSelectionIfAvailable()
+        }
+        #else
+        valueText.textSelectionIfAvailable()
+        #endif
+    }
 }
+
+private extension View {
+    @ViewBuilder func textSelectionIfAvailable() -> some View {
+        if #available(iOS 15, macOS 12, *) {
+            textSelection(.enabled)
+        } else {
+            self
+        }
+    }
+}
+
+#if canImport(UIKit)
+/// Read-only, non-scrolling text that supports selecting and copying any part of it.
+@available(iOS 16, *)
+private struct SelectableText: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.isEditable = false
+        view.isSelectable = true
+        view.isScrollEnabled = false
+        view.backgroundColor = .clear
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        view.textColor = .label
+        view.adjustsFontForContentSizeCategory = true
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        if view.text != text { view.text = text }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width.isFinite else { return nil }
+        let height = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: width, height: ceil(height))
+    }
+}
+#endif
 
 struct LogDetailsView_Previews: PreviewProvider {
     static var previews: some View {

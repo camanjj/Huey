@@ -185,7 +185,7 @@ extension LogValue {
               JSONSerialization.isValidJSONObject(jsonObject),
               let data = try? JSONSerialization.data(
                 withJSONObject: jsonObject,
-                options: [.prettyPrinted, .sortedKeys]
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
               ),
               let string = String(data: data, encoding: .utf8) else {
             return stringValue

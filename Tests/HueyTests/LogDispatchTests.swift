@@ -49,6 +49,15 @@ final class LogDispatchTests: XCTestCase {
         XCTAssertEqual(recorder.events.last?.context?["error"], .null)
     }
 
+    func testErrorWithNilKeepsMetaError() {
+        Log.error("kaboom", meta: ["error": "from meta"])
+        XCTAssertEqual(recorder.events.last?.context?["error"], "from meta")
+
+        struct Boom: Error {}
+        Log.error("kaboom", error: Boom(), meta: ["error": "from meta"])
+        XCTAssertTrue(recorder.events.last?.context?["error"]?.stringValue.contains("Boom") == true)
+    }
+
     func testEnableLoggingFalseSuppressesNonDebug() {
         Log.enableLogging = false
         Log.info("i")
