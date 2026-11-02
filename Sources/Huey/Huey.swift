@@ -72,7 +72,12 @@ public enum Log {
 
     public static func error(_ message: String, error: Error? = nil, meta: [String: LogValue]? = nil, line: Int = #line, function: String = #function, file: String = #file) {
         var combined: [String: LogValue] = meta ?? [:]
-        combined["error"] = error.map { .string("\($0)") } ?? .null
+        // A passed `error` wins; without one, keep any "error" the caller put in `meta`.
+        if let error = error {
+            combined["error"] = .string("\(error)")
+        } else if combined["error"] == nil {
+            combined["error"] = .null
+        }
         dispatch(level: .error, message: message, meta: combined, line: line, function: function, file: file)
     }
 

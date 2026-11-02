@@ -148,4 +148,20 @@ final class LogValueTests: XCTestCase {
         let reparsed = try JSONDecoder().decode(LogValue.self, from: Data(copied.utf8))
         XCTAssertEqual(reparsed, container)
     }
+
+    func testCopyAllContextIsSortedJSONThatRoundTrips() throws {
+        let context: [String: LogValue] = [
+            "zeta": "last",
+            "alpha": ["nested": [1, 2.5, true]],
+            "missing": .null,
+            "url": "https://example.com/a",
+        ]
+        let copied = LogValue.dictionary(context).copyText
+
+        XCTAssertTrue(copied.contains("https://example.com/a"), "Copied JSON shouldn't escape slashes")
+        let keys = ["\"alpha\"", "\"missing\"", "\"zeta\""].map { copied.range(of: $0)!.lowerBound }
+        XCTAssertEqual(keys, keys.sorted(), "Copy All should list keys alphabetically")
+        let reparsed = try JSONDecoder().decode(LogValue.self, from: Data(copied.utf8))
+        XCTAssertEqual(reparsed, .dictionary(context))
+    }
 }
